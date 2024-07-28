@@ -40,17 +40,21 @@ def load_last_sent_time():
 # Инициализация временной метки последней отправленной новости
 last_sent_time = load_last_sent_time()
 
-def get_html_content(url):
-    """Получение HTML контента по URL с задержкой между запросами"""
-    try:
-        response = requests.get(url)
-        response.raise_for_status()
-        return response.text
-    except Exception as e:
-        print(f"Error fetching the URL {url}: {e}")
-        return None
-    finally:
-        time.sleep(2)  # Задержка 2 секунды между запросами
+def get_html_content(url, retries=5, delay=2):
+    """Получение HTML контента по URL с фиксированной задержкой и повторными попытками"""
+    for _ in range(retries):
+        try:
+            response = requests.get(url)
+            response.raise_for_status()
+            return response.text
+        except requests.exceptions.RequestException as e:
+            if response.status_code == 429:
+                print(f"Error fetching the URL {url}: {e}. Retrying in {delay} seconds...")
+                time.sleep(delay)
+            else:
+                print(f"Error fetching the URL {url}: {e}")
+                return None
+    return None
 
 def extract_image_url(html_content, class_name):
     """Извлечение URL изображения из HTML контента"""
@@ -72,38 +76,37 @@ def extract_div_text(html_content, class_names):
     return "\n\n".join(div_texts)
 
 def get_latest_news():
-    """Получение последних новостей из RSS-ленты"""
+    """Получение последней новости из RSS-ленты"""
     feed = feedparser.parse(RSS_FEED_URL)
-    articles = []
-
-    for entry in reversed(feed.entries):
-        published_time = datetime(*entry.published_parsed[:6])
+    if feed.entries:
+        latest_entry = feed.entries[0]
+        published_time = datetime(*latest_entry.published_parsed[:6])
         if published_time > last_sent_time:
-            url = entry.link
+            url = latest_entry.link
             html_content = get_html_content(url)
             if html_content:
                 image_url = extract_image_url(html_content, 'af30e1399f')
                 div_text = extract_div_text(html_content, ['d4d7f9cef4', 'df068f8f97'])
-                articles.append({
-                    'title': entry.title,
-                    'link': entry.link,
+                article = {
+                    'title': latest_entry.title,
+                    'link': latest_entry.link,
                     'image_url': image_url,
                     'div_text': div_text,
-                    'description': entry.summary,
+                    'description': latest_entry.summary,
                     'published_time': published_time
-                })
-
-    return articles
+                }
+                return article
+    return None
 
 def check_for_new_articles():
-    """Проверка новых новостей и добавление их в очередь"""
+    """Проверка новой новости и добавление её в очередь"""
     global last_sent_time
-    articles = get_latest_news()
-    if articles:
-        news_queue.extend(articles)
-        last_sent_time = max(article['published_time'] for article in articles)
+    article = get_latest_news()
+    if article:
+        news_queue.append(article)
+        last_sent_time = article['published_time']
         save_last_sent_time(last_sent_time)
-        print(f"Added {len(articles)} articles to the queue.")
+        print("Added one article to the queue.")
 
     Timer(600, check_for_new_articles).start()  # Проверка каждые 10 минут
 
