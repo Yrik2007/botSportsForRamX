@@ -23,6 +23,11 @@ LAST_SENT_FILE = 'last_sent.json'
 # Очередь для хранения новых новостей
 news_queue = []
 
+# Заголовки для имитации запроса от веб-браузера
+HEADERS = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+}
+
 def save_last_sent_time(last_sent_time):
     """Сохранение временной метки последней отправленной новости в файл"""
     with open(LAST_SENT_FILE, 'w') as file:
@@ -40,11 +45,11 @@ def load_last_sent_time():
 # Инициализация временной метки последней отправленной новости
 last_sent_time = load_last_sent_time()
 
-def get_html_content(url, retries=5, delay=10):
+def get_html_content(url, retries=5, delay=2):
     """Получение HTML контента по URL с фиксированной задержкой и повторными попытками"""
     for _ in range(retries):
         try:
-            response = requests.get(url)
+            response = requests.get(url, headers=HEADERS)
             response.raise_for_status()
             return response.text
         except requests.exceptions.RequestException as e:
