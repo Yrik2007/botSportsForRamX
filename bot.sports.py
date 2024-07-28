@@ -40,7 +40,7 @@ def load_last_sent_time():
 # Инициализация временной метки последней отправленной новости
 last_sent_time = load_last_sent_time()
 
-def get_html_content(url, retries=5, delay=2):
+def get_html_content(url, retries=5, delay=10):
     """Получение HTML контента по URL с фиксированной задержкой и повторными попытками"""
     for _ in range(retries):
         try:
@@ -76,37 +76,36 @@ def extract_div_text(html_content, class_names):
     return "\n\n".join(div_texts)
 
 def get_latest_news():
-    """Получение последней новости из RSS-ленты"""
+    """Получение последних новостей из RSS-ленты"""
     feed = feedparser.parse(RSS_FEED_URL)
-    if feed.entries:
-        latest_entry = feed.entries[0]
-        published_time = datetime(*latest_entry.published_parsed[:6])
+    articles = []
+    for entry in reversed(feed.entries[:10]):  # Получаем только последние 10 новостей
+        published_time = datetime(*entry.published_parsed[:6])
         if published_time > last_sent_time:
-            url = latest_entry.link
+            url = entry.link
             html_content = get_html_content(url)
             if html_content:
                 image_url = extract_image_url(html_content, 'af30e1399f')
                 div_text = extract_div_text(html_content, ['d4d7f9cef4', 'df068f8f97'])
-                article = {
-                    'title': latest_entry.title,
-                    'link': latest_entry.link,
+                articles.append({
+                    'title': entry.title,
+                    'link': entry.link,
                     'image_url': image_url,
                     'div_text': div_text,
-                    'description': latest_entry.summary,
+                    'description': entry.summary,
                     'published_time': published_time
-                }
-                return article
-    return None
+                })
+    return articles
 
 def check_for_new_articles():
-    """Проверка новой новости и добавление её в очередь"""
+    """Проверка новых новостей и добавление их в очередь"""
     global last_sent_time
-    article = get_latest_news()
-    if article:
-        news_queue.append(article)
-        last_sent_time = article['published_time']
+    articles = get_latest_news()
+    if articles:
+        news_queue.extend(articles)
+        last_sent_time = max(article['published_time'] for article in articles)
         save_last_sent_time(last_sent_time)
-        print("Added one article to the queue.")
+        print(f"Added {len(articles)} articles to the queue.")
 
     Timer(600, check_for_new_articles).start()  # Проверка каждые 10 минут
 
