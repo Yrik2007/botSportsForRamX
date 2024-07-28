@@ -41,7 +41,7 @@ def load_last_sent_time():
 last_sent_time = load_last_sent_time()
 
 def get_html_content(url):
-    """Получение HTML контента по URL"""
+    """Получение HTML контента по URL с задержкой между запросами"""
     try:
         response = requests.get(url)
         response.raise_for_status()
@@ -49,6 +49,8 @@ def get_html_content(url):
     except Exception as e:
         print(f"Error fetching the URL {url}: {e}")
         return None
+    finally:
+        time.sleep(2)  # Задержка 2 секунды между запросами
 
 def extract_image_url(html_content, class_name):
     """Извлечение URL изображения из HTML контента"""
